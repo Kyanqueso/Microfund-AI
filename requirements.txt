@@ -1,0 +1,8 @@
+streamlit
+openai
+pandas
+scikit-learn
+xgboost
+shap
+fpdf
+python-dotenv
