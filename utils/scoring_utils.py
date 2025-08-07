@@ -17,7 +17,7 @@ def train_model(csv_path="data/sme_esg_applications_1000.csv"):
     df["ESG_Label"] = df["ESG_Aligned"].map({"No": 0, "Partial": 1, "Yes": 2})
     X, y = df["combined_text"], df["ESG_Label"]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
-
+    
     pipeline = make_pipeline(
         TfidfVectorizer(max_features=500),
         XGBClassifier(use_label_encoder=False, eval_metric="mlogloss")

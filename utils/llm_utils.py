@@ -12,8 +12,9 @@ import os
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# No files prompt
 def generate_summary(prompt):
-    client = openai.OpenAI()  # New client object
+    client = openai.OpenAI() 
 
     response = client.chat.completions.create(
         model="gpt-4.1",
@@ -25,6 +26,21 @@ def generate_summary(prompt):
         max_tokens=500
     )
     return response.choices[0].message.content
+
+# With uploaded files prompt
+def generate_summary2(prompt, valid_id_desc, business_permit_path, bank_statement_path, income_tax_file_path):
+    client2 = openai.OpenAI()
+
+    combined_prompt = ()
+    response2 = client2.chat.completions.create(
+        model="gpt-4.1",
+        messages = [
+            {"role":"system", "content": "You are a helpful loan analyst AI assistant."},
+            {"role":"user", "content": combined_prompt}
+        ],
+        temperature=0.7, # Since must be more rational
+        max_tokens = 500
+    )
 
 # ========================================
 # Detect if Image is Fake AI Model Section
@@ -44,3 +60,6 @@ def detect_id_authenticity(uploaded_file):
         probs = torch.softmax(logits, dim=0).tolist()
 
     return {id2label[str(i)]: probs[i] for i in range(len(probs))}
+
+# ========================================
+# Image to Text (for Valid ID)

@@ -34,7 +34,7 @@ borrower_id = st.session_state.selected_borrower_id
 borrower = get_id(borrower_id)
 
 # Unpacking the borrower tuple 
-id, name, email, location, business_type, business_stage, loan_goal, sales, income_freqruency, has_employees, essay, timestamp = borrower
+id, name, email, location, business_type, business_stage, loan_goal, sales, income_freqruency, has_employees, essay, timestamp, bank_num, valid_id, business_permit, bank_statement, income_tax_file, collateral = borrower
 
 with st.spinner("Analyzing borrower profile..."):
     model_pipeline, accuracy = train_model()
@@ -45,12 +45,13 @@ with st.spinner("Analyzing borrower profile..."):
 
 st.header(f"Details of {name}")
 st.html("<hr>")
-st.subheader("Information and Business Plan")
+st.subheader("Table of Information")
 
 features = [
     "ID", "Name", "Email", "Location", "Business Type",
     "Business Stage", "Loan Goal", "Sales", "Income Frequency",
-    "Has Employees", "Essay", "Timestamp"
+    "Has Employees", "Essay", "Timestamp","Bank Account Number", "Valid ID", 
+    "Business Permit", "Bank Statements", "Income Tax Files", "Collateral Description"
 ]
 
 # Display in table
@@ -59,6 +60,7 @@ df = pd.DataFrame({
     "Value": borrower
 })
 st.dataframe(df)
+st.markdown("For uploaded files check ID of user and data folder")
 
 # Display PDF file (optional)
 
@@ -76,6 +78,7 @@ summary_prompt = f"""
     Sales: {sales}
     Has Employees: {has_employees}
     Essay: {essay}
+    Collateral : {collateral}
 
     Your machine learning model predicts: **{esg_score}**
 
@@ -83,11 +86,12 @@ summary_prompt = f"""
     Explain in plain language. Limit to 2 paragraphs.
     """
 
+st.subheader(f"Machine Learning model prediction: {esg_score}")
+
 with st.spinner("Generating ESG analysis..."):
     summary_output = generate_summary(summary_prompt)
 
 st.markdown(summary_output)
-# Machine learning montage mometns here + SHAP to rate ESG Score
 
 st.html("<hr>")
 st.subheader("Ask AI")
@@ -107,7 +111,8 @@ reject = col3.button("Reject")
 if accept:
     st.success("Loan Approved!")
     time.sleep(3)
-    st.switch_page("pages/1_ESG_Manager_Hub.py")
+    download_report = st.button("Download as report (PDF)")
+    # Let GPT make the report moments
 
 elif flagged:
     st.warning("Loan placed into more reviewing")

@@ -1,10 +1,5 @@
-# TO-DO
-# store as pdf the llm_repsonse
-# add valid ID Form, (text to image moments na model)
-
-#from utils.llm_utils import query_llm_from_data
-from data.database import insert_borrower
-from utils.llm_utils import detect_id_authenticity
+from data.database import insert_borrower, save_file_to_data, update_borrower_files
+from utils.llm_utils import detect_id_authenticity, generate_summary
 import streamlit as st
 import time
 
@@ -26,7 +21,7 @@ st.markdown(hide_sidebar_style, unsafe_allow_html=True)
 st.set_page_config(page_title="Borrower Hub", layout="wide")
 
 st.title("Borrower Hub")
-st.subheader("Get pre-assessed for a loan and receive a simple business plan. All in X minutes!")
+st.subheader("Get pre-assessed for a loan. All in less than a minute!")
 st.html("<hr>")
 
 # Initialize Session State
@@ -56,15 +51,18 @@ if st.session_state.borrower_step == 1:
 
         # Get and Store results
         if step1_submit:
-            st.session_state.borrower_data.update({
-                "name": name,
-                "email": email,
-                "location": location,
-                "business_type": business_type,
-                "business_stage": business_stage,
-                "loan_goal": loan_goal
-            })
-            st.session_state.borrower_step = 2
+            if not all([name, location, business_type, business_stage, loan_goal]):
+                st.warning("Please fill all non-optional fields")
+            else:
+                st.session_state.borrower_data.update({
+                    "name": name,
+                    "email": email,
+                    "location": location,
+                    "business_type": business_type,
+                    "business_stage": business_stage,
+                    "loan_goal": loan_goal
+                })
+                st.session_state.borrower_step = 2
 
 # Step 2: Operations Form
 elif st.session_state.borrower_step == 2:
@@ -92,13 +90,18 @@ elif st.session_state.borrower_step == 2:
                 "esg_essay":esg_essay
             })
             st.session_state.borrower_step = 3
-        
+
         if restart:
             st.session_state.borrower_step = 1
             st.session_state.borrower_data = {}
 
 # AI Section + Step 3
 elif st.session_state.borrower_step == 3:
+
+    # Initialize variables
+    label = None 
+    confidence = 0.0
+    
     data = st.session_state.borrower_data
     st.subheader("Your Microloan Preview")
     st.html("<hr>")
@@ -114,16 +117,51 @@ elif st.session_state.borrower_step == 3:
     Here's what our AI recommends:
     """)
 
-    # CHECK SKILLS WORD DOCUMENT FOR CODE
+    prompt = f"""
+        Role: You are a Loan Manager from BPI (Bank of the Philippine Islands). You are expected to be professional, 
+        data-driven, and firm in assessing loan applications, but also compassionate and understanding toward 
+        Filipino borrowers.
+
+        Moreover, the following are the responses of a potential loan applicant:
+
+        Name: {data['name']}
+        Email: {data['email']}
+        Location: {data['location']},
+        Business type: {data['business_type']},
+        Business stage: {data['business_stage']},
+        Loan goal: {data["loan_goal"]}
+        Monthly sales: ₱{data['monthly_sales']:,.0f},
+        Income frequency: {data["income_frequency"]},
+        Has employees: {data["has_employees"]}
+
+        Task:
+        Based on the information provided, conduct a preliminary assessment of the applicant’s potential loan eligibility. 
+        Consider financial capacity, business maturity, and loan goal. 
+        
+        Then:
+        - Provide a short but realistic pre-assessment of their loan eligibility.
+        - Indicate a probability rating (in percentage) of approval based on typical BPI lending criteria.
+        - Keep your tone firm but supportive—show you are open to helping them qualify if not immediately eligible.
+
+        Structure your response like this as well:
+        1. Concise Preliminary Assessment
+        2. Probability
+        3. Conclusion
+    """
+    
+    with st.spinner("AI is assessing your answers..."):
+        ai_summary = generate_summary(prompt)
+        st.markdown(ai_summary)
 
     st.html("<br>")
-    st.button("Download as Business Plan")
 
     # Step 3
     st.html("<hr>")
     st.subheader("Final Step: Document Upload")
 
     with st.form("step3_submit"):
+        bank_num = st.text_input("Enter BPI bank account number here")
+        
         valid_id = st.file_uploader(type=["JPG", "PNG"], accept_multiple_files=False, 
                                     label="Please upload a Valid government ID here")
 
@@ -154,26 +192,41 @@ elif st.session_state.borrower_step == 3:
             else:
                 st.error("Unexpected AI response.")
 
-        business_plan = st.file_uploader(type="PDF", accept_multiple_files=False, 
-                                        label="Upload Business Plan PDF here. You may use the AI-generated business plan if you don't have one")
+        business_permit = st.file_uploader(type="PDF", accept_multiple_files=False, 
+                                        label="Upload Business Permit here")
         
-        esg_file = st.file_uploader(type="CSV", accept_multiple_files=False,
-                                    label="Upload ESG data here (Optional but highly encouraged)")
+        bank_statement = st.file_uploader(type="PDF", accept_multiple_files=False,
+                                    label="Upload the last 3 months of bank statements here (must be 1 PDF file only)")
 
-        col1, col2 = st.columns(2)
+        income_tax_file = st.file_uploader(type="PDF", accept_multiple_files=False,
+                                           label="Upload most recent income tax return")
+        
+        collateral = st.text_area("Enter the details of collateral here, can be real property or the equipment to be financed (OPTIONAL)")
+
+        col1, col2, col3= st.columns(3)
         step3_submit = col1.form_submit_button("Submit")
-        restart = col2.form_submit_button("🔁 Start Over")
+        restart = col3.form_submit_button("🔁 Start Over")
 
         # Submit handling (only proceed if label is real)
         
         if step3_submit:
-            if valid_id is None:
-                st.warning("Please upload both a valid government ID and a business plan PDF before submitting.")
+            if not all([bank_num, valid_id, business_permit, bank_statement, income_tax_file]):
+                st.warning("Please upload all required documents before submitting")
+            elif label is None:
+                st.error("ID authenticity has not been verified yet.")
             elif label.lower() != "real":
                 st.error("Cannot proceed — ID did not pass authenticity check.")
             else:
+                st.session_state.borrower_data.update({
+                    "bank_num": bank_num,
+                    "valid_id": valid_id,
+                    "business_permit": business_permit,
+                    "bank_statement": bank_statement,
+                    "income_tax_file": income_tax_file,
+                    "collateral": collateral
+                })
                 # Insert into Database
-                insert_borrower(
+                borrower_id = insert_borrower(
                     name=data["name"],
                     email=data.get("email", ""),
                     location=data["location"],
@@ -183,7 +236,20 @@ elif st.session_state.borrower_step == 3:
                     sales=data["monthly_sales"],
                     income_freqruency=data["income_frequency"],
                     has_employees=data["has_employees"].lower(),
-                    essay=data.get("esg_essay", "")
+                    essay=data.get("esg_essay", ""),
+                    bank_num = data["bank_num"],
+                    collateral=data.get("collateral", "")
+                )
+
+                # Save uploaded files to /data folder (might change to just a new folder talaga)
+                valid_id_path = save_file_to_data(valid_id, borrower_id)
+                business_permit_path = save_file_to_data(business_permit, borrower_id)
+                bank_statement_path = save_file_to_data(bank_statement, borrower_id)
+                income_tax_file_path = save_file_to_data(income_tax_file, borrower_id)
+
+                update_borrower_files(
+                    borrower_id, valid_id_path, business_permit_path, 
+                    bank_statement_path, income_tax_file_path
                 )
 
                 st.success("All documents are in order. Saving your data...")

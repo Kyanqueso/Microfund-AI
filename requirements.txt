@@ -6,3 +6,4 @@ xgboost
 shap
 fpdf
 python-dotenv
+torch

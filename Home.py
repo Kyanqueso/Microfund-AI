@@ -4,7 +4,7 @@ from PIL import Image
 import time
 from data.database import init_db
 
-# Initialize the database gaming
+# Initialize the database
 init_db()
 
 # Hide Sidebar
