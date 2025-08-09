@@ -59,7 +59,7 @@ def save_file_to_data(uploaded_file, borrower_id, subfolder="data"):
     save_path = os.path.join(folder_path, unique_filename)
 
     with open(save_path, "wb") as f:
-        f.write(uploaded_file.read())
+        f.write(uploaded_file.getbuffer())
 
     return os.path.relpath(save_path)
 
